@@ -32,15 +32,17 @@ KAPPA   = {"retailer": 0.45, "wholesaler": 0.55, "distributor": 0.60, "factory":
 LOW_THR = {"retailer": 6,  "wholesaler": 8,  "distributor": 10, "factory": 12}
 MIN_ORD = {"retailer": 1,  "wholesaler": 2,  "distributor": 3,  "factory": 4}
 CAP_BUF = {"retailer": 8,  "wholesaler": 10, "distributor": 12, "factory": 14}
+DEADBAND = {"retailer": 1, "wholesaler": 2, "distributor": 2, "factory": 3}   # UUS
 ROLES = ("retailer", "wholesaler", "distributor", "factory")
 
 def order_for_role(rname: str, rstate: Dict[str, Any]) -> int:
-    role   = rname.lower()
-    safety = SAFETY.get(role, 12)
-    kappa  = KAPPA.get(role, 0.65)
+    role    = rname.lower()
+    safety  = SAFETY.get(role, 12)
+    kappa   = KAPPA.get(role, 0.65)
     low_thr = LOW_THR.get(role, 9)
     min_ord = MIN_ORD.get(role, 2)
     cap_buf = CAP_BUF.get(role, 20)
+    db      = DEADBAND.get(role, 1)
 
     inv = int(rstate.get("inventory", 0) or 0)
     bkl = int(rstate.get("backlog", 0) or 0)
@@ -49,8 +51,12 @@ def order_for_role(rname: str, rstate: Dict[str, Any]) -> int:
 
     effective = inv + arr
     target = safety + inc + bkl
+
+    # --- deadband: väga väikse puudujäägi korral ei telli üldse
     gap = target - effective
-    if gap < 0:
+    if gap <= db:
+        gap = 0
+    elif gap < 0:
         gap = 0
 
     order = math.ceil(kappa * gap)
@@ -107,3 +113,4 @@ def decide(req: DecisionRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
